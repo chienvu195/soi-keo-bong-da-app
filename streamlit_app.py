@@ -5,6 +5,7 @@ from datetime import date
 # ============ CONFIG ============
 API_KEY = st.secrets["API_KEY"]
 HEADERS = {"x-apisports-key": API_KEY}
+BASE_URL = "https://v3.football.api-sports.io"
 
 st.set_page_config(page_title="Soi kèo bóng đá PRO", layout="centered")
 
@@ -21,6 +22,7 @@ body { background:#0e1117; }
 }
 .good { color:#00ff9c; font-weight:bold; }
 .warn { color:#ffaa00; font-weight:bold; }
+.wait { color:#999; font-weight:bold; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -29,19 +31,19 @@ st.caption("Live + Trận hôm nay + Gợi ý vào tiền 🚀")
 
 tab1, tab2 = st.tabs(["📡 LIVE", "📅 TRẬN HÔM NAY"])
 
-# ============ LIVE ============
+# ================= LIVE =================
 @st.cache_data(ttl=60)
 def live_matches():
-    r = requests.get(
-        "https://v3.football.api-sports.io/fixtures?live=all",
-        headers=HEADERS
-    )
-    return r.json().get("response", [])
+    try:
+        r = requests.get(f"{BASE_URL}/fixtures?live=all", headers=HEADERS, timeout=10)
+        return r.json().get("response", [])
+    except:
+        return []
 
 with tab1:
     matches = live_matches()
     if not matches:
-        st.warning("❌ Không có trận live")
+        st.warning("❌ Không có trận live hoặc lỗi API")
     else:
         for m in matches:
             minute = m["fixture"]["status"]["elapsed"]
@@ -54,28 +56,40 @@ with tab1:
             sa = m["goals"]["away"]
             total = sh + sa
 
-            if minute >= 70 and total <= 1:
-                tip = "XỈU LIVE CUỐI TRẬN"
-            elif minute >= 60 and total >= 2:
-                tip = "TÀI LIVE"
+            stats = m.get("statistics", [])
+            shots = 0
+            if stats:
+                for s in stats:
+                    if s["team"]["name"] == home:
+                        shots += s["statistics"][0]["value"] or 0
+                    if s["team"]["name"] == away:
+                        shots += s["statistics"][0]["value"] or 0
+
+            # LOGIC LIVE
+            if minute >= 70 and total <= 1 and shots < 15:
+                tip = "<span class='good'>XỈU LIVE CUỐI</span>"
+            elif minute >= 60 and total >= 2 and shots >= 15:
+                tip = "<span class='good'>TÀI LIVE</span>"
             else:
-                tip = "CHỜ"
+                tip = "<span class='wait'>CHỜ KÈO</span>"
 
             st.markdown(f"""
             <div class="card">
             <b>{home}</b> {sh}-{sa} <b>{away}</b><br>
-            ⏱️ {minute}'<br>
-            👉 <span class='good'>{tip}</span>
+            ⏱️ {minute}' | 🔥 Shots: {shots}<br>
+            👉 {tip}
             </div>
             """, unsafe_allow_html=True)
 
-# ============ PREMATCH ============
+# ================= PREMATCH =================
 @st.cache_data(ttl=3600)
 def today_matches():
-    today = date.today().isoformat()
-    url = f"https://v3.football.api-sports.io/fixtures?date={today}"
-    r = requests.get(url, headers=HEADERS)
-    return r.json().get("response", [])
+    try:
+        today = date.today().isoformat()
+        r = requests.get(f"{BASE_URL}/fixtures?date={today}", headers=HEADERS, timeout=10)
+        return r.json().get("response", [])
+    except:
+        return []
 
 with tab2:
     games = today_matches()
@@ -87,7 +101,10 @@ with tab2:
             away = g["teams"]["away"]["name"]
             league = g["league"]["name"]
 
-            # DỰ ĐOÁN ĐƠN GIẢN
+            # LỌC TRẬN DỄ ĂN
+            if g["teams"]["home"]["winner"] is None:
+                continue
+
             tip_tx = "XỈU 2.5"
             tip_ah = f"{home} -0.25"
 
