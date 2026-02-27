@@ -1,13 +1,19 @@
-import streamlit as st
-import random
+ import streamlit as st
+import requests
+import datetime
 
-# ===== CẤU HÌNH =====
+# ================== CẤU HÌNH ==================
+API_KEY = "b4b4c0f97e599b6531fc0683ba683638"
+HEADERS = {
+    "x-apisports-key": API_KEY
+}
+
 st.set_page_config(
-    page_title="Soi kèo bóng đá",
+    page_title="Soi kèo bóng đá PRO",
     layout="centered"
 )
 
-# ===== CSS =====
+# ================== CSS ==================
 st.markdown("""
 <style>
 body { background:#0e1117; }
@@ -18,139 +24,86 @@ body { background:#0e1117; }
     border:1px solid #2a2a2a;
     margin-top:20px;
 }
-.box-green {
-    background:#1e7f3f;
-    padding:12px;
-    border-radius:10px;
-    text-align:center;
-    color:white;
-}
-.box-red {
-    background:#7f1e1e;
-    padding:12px;
-    border-radius:10px;
-    text-align:center;
-    color:white;
-}
-.box-blue {
-    background:#1e3f7f;
-    padding:12px;
-    border-radius:10px;
-    text-align:center;
-    color:white;
-}
-.ketluan {
-    background:#1b1b1b;
-    padding:15px;
-    border-radius:10px;
-    margin-top:15px;
-}
+.good { color:#00ff9c; font-weight:bold; }
+.bad { color:#ff4b4b; font-weight:bold; }
+.neutral { color:#ffaa00; font-weight:bold; }
 </style>
 """, unsafe_allow_html=True)
 
-# ===== TIÊU ĐỀ =====
-st.markdown("## ⚽ Soi kèo bóng đá PRO")
-st.caption("Kèo Tài Xỉu – Châu Á – Gợi ý vào tiền 🚀")
+st.title("⚽ Soi kèo bóng đá PRO")
+st.caption("Kèo Tài/Xỉu – Châu Á – LIVE ⚡")
 
-# ===== NHẬP THÔNG TIN =====
-doi_nha = st.text_input("🏠 Đội nhà", "Man City")
-doi_khach = st.text_input("✈️ Đội khách", "Arsenal")
+# ================== LẤY TRẬN ĐANG ĐÁ ==================
+@st.cache_data(ttl=60)
+def get_live_matches():
+    url = "https://v3.football.api-sports.io/fixtures?live=all"
+    r = requests.get(url, headers=HEADERS)
+    if r.status_code != 200:
+        return []
+    return r.json().get("response", [])
 
-# ===== KÈO TÀI XỈU =====
-st.subheader("📊 Kèo Tài / Xỉu")
-keo_tx = st.selectbox("Mốc Tài Xỉu", ["2.0","2.25","2.5","2.75","3.0"])
-col1, col2 = st.columns(2)
-with col1:
-    odd_tai = st.number_input("Odds TÀI", value=1.95)
-with col2:
-    odd_xiu = st.number_input("Odds XỈU", value=1.85)
+live_matches = get_live_matches()
 
-# ===== KÈO CHÂU Á =====
-st.subheader("📉 Kèo Châu Á")
-keo_ca = st.selectbox(
-    "Mốc chấp",
-    ["0", "-0.25", "-0.5", "-0.75", "+0.25", "+0.5"]
-)
+if not live_matches:
+    st.warning("❌ Hiện không có trận LIVE")
+    st.stop()
 
-col3, col4 = st.columns(2)
-with col3:
-    odd_nha = st.number_input("Odds đội nhà", value=1.90)
-with col4:
-    odd_khach = st.number_input("Odds đội khách", value=1.95)
+# ================== CHỌN TRẬN ==================
+match_names = []
+for m in live_matches:
+    home = m["teams"]["home"]["name"]
+    away = m["teams"]["away"]["name"]
+    minute = m["fixture"]["status"]["elapsed"]
+    match_names.append(f"{home} vs {away} ({minute}')")
 
-# ===== VÀO TIỀN =====
-st.subheader("💰 Quản lý vốn")
-von = st.number_input("Vốn (VNĐ)", value=1000000, step=100000)
-phan_tram = st.slider("Phần trăm vào kèo (%)", 1, 20, 5)
+selected = st.selectbox("📡 Chọn trận LIVE", match_names)
+idx = match_names.index(selected)
+match = live_matches[idx]
 
-# ===== PHÂN TÍCH =====
-if st.button("📈 Phân tích & gợi ý"):
-    tx_rate = random.randint(45, 65)
-    ca_rate = random.randint(45, 65)
+home = match["teams"]["home"]["name"]
+away = match["teams"]["away"]["name"]
+score_home = match["goals"]["home"]
+score_away = match["goals"]["away"]
+minute = match["fixture"]["status"]["elapsed"]
 
-    # Gợi ý Tài Xỉu
-    if tx_rate >= 55:
-        tx_goi_y = "TÀI"
-        tx_mau = "#1e7f3f"
+st.markdown(f"""
+<div class="card">
+<b>{home}</b> {score_home} - {score_away} <b>{away}</b><br>
+⏱️ Phút: {minute}'
+</div>
+""", unsafe_allow_html=True)
+
+# ================== KÈO TÀI / XỈU ==================
+st.markdown("## 📊 Kèo Tài / Xỉu")
+
+line = st.selectbox("Mốc Tài/Xỉu", [1.5, 2.0, 2.5, 3.0, 3.5])
+odds_over = st.number_input("Odds TÀI", value=1.95, step=0.01)
+odds_under = st.number_input("Odds XỈU", value=1.85, step=0.01)
+
+total_goals = score_home + score_away
+
+if st.button("📈 Phân tích Tài/Xỉu"):
+    if minute < 30 and total_goals == 0:
+        st.markdown("<span class='good'>👉 ƯU TIÊN XỈU (trận chậm)</span>", unsafe_allow_html=True)
+    elif minute > 70 and total_goals < line:
+        st.markdown("<span class='good'>👉 ƯU TIÊN TÀI CUỐI TRẬN</span>", unsafe_allow_html=True)
+    elif total_goals >= line:
+        st.markdown("<span class='neutral'>⚠️ Đã chạm mốc – CÂN NHẮC</span>", unsafe_allow_html=True)
     else:
-        tx_goi_y = "XỈU"
-        tx_mau = "#7f1e1e"
+        st.markdown("<span class='bad'>🚫 NO BET – không rõ xu hướng</span>", unsafe_allow_html=True)
 
-    # Gợi ý Châu Á
-    if ca_rate >= 55:
-        ca_goi_y = "ĐỘI NHÀ"
-        ca_mau = "#1e7f3f"
+# ================== KÈO CHÂU Á ==================
+st.markdown("## 📉 Kèo Châu Á")
+
+handicap = st.selectbox("Mốc chấp", [-1, -0.75, -0.5, -0.25, 0, 0.25, 0.5])
+odds_home = st.number_input("Odds đội nhà", value=1.90, step=0.01)
+odds_away = st.number_input("Odds đội khách", value=1.90, step=0.01)
+
+if st.button("📉 Phân tích Châu Á"):
+    diff = score_home - score_away
+    if diff + handicap > 0:
+        st.markdown("<span class='good'>👉 CỬA TRÊN ĐANG AN TOÀN</span>", unsafe_allow_html=True)
+    elif diff + handicap < 0:
+        st.markdown("<span class='good'>👉 CỬA DƯỚI CÓ LỢI</span>", unsafe_allow_html=True)
     else:
-        ca_goi_y = "ĐỘI KHÁCH"
-        ca_mau = "#1e3f7f"
-
-    tien_vao = int(von * phan_tram / 100)
-
-    st.markdown(f"""
-    <div class="card">
-        <h3 style="text-align:center;color:white;">
-            ⚽ {doi_nha} vs {doi_khach}
-        </h3>
-
-        <hr style="border:1px solid #333">
-
-        <h4 style="color:#aaa;">📊 Kèo Tài Xỉu {keo_tx}</h4>
-        <div style="display:flex;gap:10px;">
-            <div class="box-green">TÀI<br>{odd_tai}</div>
-            <div class="box-red">XỈU<br>{odd_xiu}</div>
-        </div>
-
-        <p style="color:{tx_mau};margin-top:10px;">
-            👉 Gợi ý: <b>{tx_goi_y}</b> ({tx_rate}%)
-        </p>
-
-        <hr style="border:1px solid #333">
-
-        <h4 style="color:#aaa;">📉 Kèo Châu Á {keo_ca}</h4>
-        <div style="display:flex;gap:10px;">
-            <div class="box-green">{doi_nha}<br>{odd_nha}</div>
-            <div class="box-blue">{doi_khach}<br>{odd_khach}</div>
-        </div>
-
-        <p style="color:{ca_mau};margin-top:10px;">
-            👉 Gợi ý: <b>{ca_goi_y}</b> ({ca_rate}%)
-        </p>
-
-        <hr style="border:1px solid #333">
-
-        <div class="ketluan">
-            <h4 style="color:#ffd700;">💰 GỢI Ý VÀO TIỀN</h4>
-            <p style="color:#ccc;">
-                • Vốn: {von:,} VNĐ<br>
-                • Đánh: {phan_tram}% vốn<br>
-                • Tiền vào kèo: <b>{tien_vao:,} VNĐ</b>
-            </p>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    st.warning("⚠️ Tool mô phỏng – chỉ tham khảo, không all-in")
-
-# ===== FOOTER =====
-st.markdown("---")
-st.caption("© Soi kèo bóng đá PRO | Streamlit Cloud")
+        st.markdown("<span class='neutral'>⚠️ KÈO CÂN – CÂN NHẮC</span>", unsafe_allow_html=True)
