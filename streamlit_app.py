@@ -1,12 +1,10 @@
- import streamlit as st
+import streamlit as st
 import requests
 import datetime
 
 # ================== CẤU HÌNH ==================
-API_KEY = "b4b4c0f97e599b6531fc0683ba683638"
-HEADERS = {
-    "x-apisports-key": API_KEY
-}
+API_KEY = "d6d20b7df16e6b44d434073dadf38b3e"
+HEADERS = {"x-apisports-key": API_KEY}
 
 st.set_page_config(
     page_title="Soi kèo bóng đá PRO",
@@ -31,45 +29,44 @@ body { background:#0e1117; }
 """, unsafe_allow_html=True)
 
 st.title("⚽ Soi kèo bóng đá PRO")
-st.caption("Kèo Tài/Xỉu – Châu Á – LIVE ⚡")
+st.caption("Trận hôm nay – Tài/Xỉu – Châu Á – Gợi ý vào tiền 🚀")
 
-# ================== LẤY TRẬN ĐANG ĐÁ ==================
-@st.cache_data(ttl=60)
-def get_live_matches():
-    url = "https://v3.football.api-sports.io/fixtures?live=all"
+# ================== LẤY TRẬN HÔM NAY ==================
+@st.cache_data(ttl=300)
+def get_today_matches():
+    today = datetime.date.today().strftime("%Y-%m-%d")
+    url = f"https://v3.football.api-sports.io/fixtures?date={today}"
     r = requests.get(url, headers=HEADERS)
     if r.status_code != 200:
         return []
     return r.json().get("response", [])
 
-live_matches = get_live_matches()
+matches = get_today_matches()
 
-if not live_matches:
-    st.warning("❌ Hiện không có trận LIVE")
+if not matches:
+    st.warning("❌ Hôm nay không có trận đấu")
     st.stop()
 
 # ================== CHỌN TRẬN ==================
 match_names = []
-for m in live_matches:
+for m in matches:
     home = m["teams"]["home"]["name"]
     away = m["teams"]["away"]["name"]
-    minute = m["fixture"]["status"]["elapsed"]
-    match_names.append(f"{home} vs {away} ({minute}')")
+    time = m["fixture"]["date"][11:16]
+    match_names.append(f"{home} vs {away} ({time})")
 
-selected = st.selectbox("📡 Chọn trận LIVE", match_names)
+selected = st.selectbox("📅 Chọn trận hôm nay", match_names)
 idx = match_names.index(selected)
-match = live_matches[idx]
+match = matches[idx]
 
 home = match["teams"]["home"]["name"]
 away = match["teams"]["away"]["name"]
-score_home = match["goals"]["home"]
-score_away = match["goals"]["away"]
-minute = match["fixture"]["status"]["elapsed"]
+time = match["fixture"]["date"][11:16]
 
 st.markdown(f"""
 <div class="card">
-<b>{home}</b> {score_home} - {score_away} <b>{away}</b><br>
-⏱️ Phút: {minute}'
+<b>{home}</b> 🆚 <b>{away}</b><br>
+🕒 Giờ đá: {time}
 </div>
 """, unsafe_allow_html=True)
 
@@ -77,33 +74,28 @@ st.markdown(f"""
 st.markdown("## 📊 Kèo Tài / Xỉu")
 
 line = st.selectbox("Mốc Tài/Xỉu", [1.5, 2.0, 2.5, 3.0, 3.5])
-odds_over = st.number_input("Odds TÀI", value=1.95, step=0.01)
-odds_under = st.number_input("Odds XỈU", value=1.85, step=0.01)
 
-total_goals = score_home + score_away
-
-if st.button("📈 Phân tích Tài/Xỉu"):
-    if minute < 30 and total_goals == 0:
-        st.markdown("<span class='good'>👉 ƯU TIÊN XỈU (trận chậm)</span>", unsafe_allow_html=True)
-    elif minute > 70 and total_goals < line:
-        st.markdown("<span class='good'>👉 ƯU TIÊN TÀI CUỐI TRẬN</span>", unsafe_allow_html=True)
-    elif total_goals >= line:
-        st.markdown("<span class='neutral'>⚠️ Đã chạm mốc – CÂN NHẮC</span>", unsafe_allow_html=True)
+if st.button("📈 Gợi ý Tài/Xỉu"):
+    if line <= 2.0:
+        st.markdown("👉 <span class='good'>GỢI Ý 1: Ưu tiên TÀI sớm</span>", unsafe_allow_html=True)
+        st.markdown("👉 <span class='neutral'>GỢI Ý 2: Chờ bàn sớm rồi theo TÀI</span>", unsafe_allow_html=True)
+        st.markdown("👉 <span class='bad'>GỢI Ý 3: Không vào nếu odds thấp</span>", unsafe_allow_html=True)
     else:
-        st.markdown("<span class='bad'>🚫 NO BET – không rõ xu hướng</span>", unsafe_allow_html=True)
+        st.markdown("👉 <span class='good'>GỢI Ý 1: Ưu tiên XỈU đầu trận</span>", unsafe_allow_html=True)
+        st.markdown("👉 <span class='neutral'>GỢI Ý 2: Canh TÀI live nếu có bàn sớm</span>", unsafe_allow_html=True)
+        st.markdown("👉 <span class='bad'>GỢI Ý 3: Tránh vào sớm mốc cao</span>", unsafe_allow_html=True)
 
 # ================== KÈO CHÂU Á ==================
 st.markdown("## 📉 Kèo Châu Á")
 
 handicap = st.selectbox("Mốc chấp", [-1, -0.75, -0.5, -0.25, 0, 0.25, 0.5])
-odds_home = st.number_input("Odds đội nhà", value=1.90, step=0.01)
-odds_away = st.number_input("Odds đội khách", value=1.90, step=0.01)
 
-if st.button("📉 Phân tích Châu Á"):
-    diff = score_home - score_away
-    if diff + handicap > 0:
-        st.markdown("<span class='good'>👉 CỬA TRÊN ĐANG AN TOÀN</span>", unsafe_allow_html=True)
-    elif diff + handicap < 0:
-        st.markdown("<span class='good'>👉 CỬA DƯỚI CÓ LỢI</span>", unsafe_allow_html=True)
+if st.button("📉 Gợi ý Châu Á"):
+    if handicap < 0:
+        st.markdown("👉 <span class='good'>GỢI Ý 1: Cửa trên mạnh – có thể theo</span>", unsafe_allow_html=True)
+        st.markdown("👉 <span class='neutral'>GỢI Ý 2: Chờ odds tăng rồi vào</span>", unsafe_allow_html=True)
+        st.markdown("👉 <span class='bad'>GỢI Ý 3: Tránh all-in</span>", unsafe_allow_html=True)
     else:
-        st.markdown("<span class='neutral'>⚠️ KÈO CÂN – CÂN NHẮC</span>", unsafe_allow_html=True)
+        st.markdown("👉 <span class='good'>GỢI Ý 1: Cửa dưới an toàn</span>", unsafe_allow_html=True)
+        st.markdown("👉 <span class='neutral'>GỢI Ý 2: Theo hiệp 1</span>", unsafe_allow_html=True)
+        st.markdown("👉 <span class='bad'>GỢI Ý 3: Không theo nếu odds thấp</span>", unsafe_allow_html=True)
