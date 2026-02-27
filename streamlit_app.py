@@ -3,7 +3,7 @@ import requests
 import datetime
 
 # ================== CẤU HÌNH ==================
-API_KEY = "d6d20b7df16e6b44d434073dadf38b3e"
+API_KEY = "b4b4c0f97e599b6531fc0683ba683638"
 HEADERS = {"x-apisports-key": API_KEY}
 
 st.set_page_config(
